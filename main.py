@@ -16,8 +16,12 @@ def read_xml_sourcefile(file_name):
 try:
     from config import *
 
-    Options = namedtuple("Options", "user passwd account repo")
-    opts = Options(user=user, passwd=passwd, account=account, repo=repo)
+    Options = namedtuple("Options", "account repo headers")
+    opts = Options(account=account, repo=repo,
+                   headers={
+                       'Accept': 'application/vnd.github.golden-comet-preview+json',
+                       'Authorization': 'token ' + token,
+                   })
 
 except:
     print """
@@ -26,8 +30,7 @@ except:
         jiraProj  # JIRA project name to use
         account   # GitHub account name
         repo      # GitHub project name
-        user      # GitHub username
-        passwd    # GitHub password
+        token     # GitHub personal access token
         file_name # Path to JIRA XML query file
     """
     sys.exit()

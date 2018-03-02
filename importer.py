@@ -8,16 +8,16 @@ import re
 
 class Importer:
 
-  
-  
+
+
   _GITHUB_ISSUE_PREFIX = "GH-"
-  
+
   _PLACEHOLDER_PREFIX = "@PSTART"
-  
+
   _PLACEHOLDER_SUFFIX = "@PEND"
-  
+
   _DEFAULT_TIME_OUT = 120.0
-  
+
   def __init__(self, options, project):
     self.options = options
     self.project = project
@@ -25,7 +25,7 @@ class Importer:
     self.jira_issue_replace_patterns = {'https://java.net/jira/browse/' + self.project.name + r'-(\d+)': r'\1',
                                        self.project.name + r'-(\d+)': Importer._GITHUB_ISSUE_PREFIX + r'\1',
                                        r'Issue (\d+)': Importer._GITHUB_ISSUE_PREFIX + r'\1'}
-    
+
   def import_milestones(self):
     """
     Imports the gathered project milestones into GitHub and remembers the created milestone ids
@@ -35,8 +35,8 @@ class Importer:
     print
     for mkey in self.project.get_milestones().iterkeys():
         data = {'title': mkey}
-        r = requests.post(milestone_url, json=data, auth=(self.options.user, self.options.passwd), timeout=Importer._DEFAULT_TIME_OUT)
-        
+        r = requests.post(milestone_url, json=data, headers=self.options.headers, timeout=Importer._DEFAULT_TIME_OUT)
+
         # overwrite histogram data with the actual milestone id now
         if r.status_code == 201:
           content = r.json()
@@ -44,8 +44,8 @@ class Importer:
           print mkey
         else:
           if r.status_code == 422: # already exists
-            ms = requests.get(milestone_url + '?state=open', timeout=Importer._DEFAULT_TIME_OUT).json()
-            ms += requests.get(milestone_url + '?state=closed', timeout=Importer._DEFAULT_TIME_OUT).json()
+            ms = requests.get(milestone_url + '?state=open', headers=self.options.headers, timeout=Importer._DEFAULT_TIME_OUT).json()
+            ms += requests.get(milestone_url + '?state=closed', headers=self.options.headers, timeout=Importer._DEFAULT_TIME_OUT).json()
             f = False
             for m in ms:
               if m['title'] == mkey:
@@ -57,18 +57,18 @@ class Importer:
               exit('Could not find milestone: ' + mkey)
           else:
             print 'Failure!', r.status_code, r.content, r.headers
-    
-  
+
+
   def import_labels(self):
     """
-    Imports the gathered project components and labels as labels into GitHub 
+    Imports the gathered project components and labels as labels into GitHub
     """
     label_url = self.github_url + '/labels'
     print 'Importing labels...', label_url
     print
     for lkey in self.project.get_components().iterkeys():
       data = {'name': lkey, 'color': '%.6x' % random.randint(0, 0xffffff)}
-      r = requests.post(label_url, json=data, auth=(self.options.user, self.options.passwd), timeout=Importer._DEFAULT_TIME_OUT)
+      r = requests.post(label_url, json=data, headers=self.options.headers, timeout=Importer._DEFAULT_TIME_OUT)
       if r.status_code == 201:
         print lkey
       else:
@@ -79,8 +79,8 @@ class Importer:
     Starts the issue import into GitHub:
     First the milestone id is captured for the issue.
     Then JIRA issue relationships are converted into comments.
-    After that, the comments are taken out of the issue and 
-    references to JIRA issues in comments are replaced with a placeholder    
+    After that, the comments are taken out of the issue and
+    references to JIRA issues in comments are replaced with a placeholder
     """
     print 'Importing issues...'
     for issue in self.project.get_issues():
@@ -91,13 +91,13 @@ class Importer:
 
 
         self.convert_relationships_to_comments(issue)
-          
+
         issue_comments = issue['comments']
         del issue['comments']
         comments = []
         for comment in issue_comments:
           comments.append(dict((k,self._replace_jira_with_github_id(v)) for k,v in comment.items()))
-        
+
         self.import_issue_with_comments(issue, comments)
 
   def import_issue_with_comments(self, issue, comments):
@@ -109,28 +109,27 @@ class Importer:
     This is a two-step process:
     First the issue with the comments is pushed to GitHub asynchronously.
     Then GitHub is pulled in a loop until the issue import is completed.
-    Finally the issue github is noted.    
+    Finally the issue github is noted.
     """
     print 'Issue ', issue['key']
     jiraKey = issue['key']
     del issue['key']
-    
-    headers = {'Accept': 'application/vnd.github.golden-comet-preview+json'}
-    response = self.upload_github_issue(issue, comments, headers)
+
+    response = self.upload_github_issue(issue, comments)
     status_url = response.json()['url']
-    gh_issue_url = self.wait_for_issue_creation(status_url, headers).json()['issue_url']
+    gh_issue_url = self.wait_for_issue_creation(status_url).json()['issue_url']
     gh_issue_id = int(gh_issue_url.split('/')[-1])
     issue['githubid'] = gh_issue_id
     #print "\nGithub issue id: ", gh_issue_id
     issue['key'] = jiraKey
-    
-  def upload_github_issue(self, issue, comments, headers):
+
+  def upload_github_issue(self, issue, comments):
       """
       Uploads a single issue to GitHub asynchronously with the Issue Import API.
       """
       issue_url = self.github_url + '/import/issues'
       issue_data = {'issue': issue, 'comments': comments}
-      response = requests.post(issue_url, json=issue_data, auth=(self.options.user, self.options.passwd), headers=headers, timeout=Importer._DEFAULT_TIME_OUT)
+      response = requests.post(issue_url, json=issue_data, headers=self.options.headers, timeout=Importer._DEFAULT_TIME_OUT)
       if response.status_code == 202:
           return response
       elif response.status_code == 422:
@@ -145,14 +144,14 @@ class Importer:
           )
 
 
-  def wait_for_issue_creation(self, status_url, headers):
+  def wait_for_issue_creation(self, status_url):
       """
       Check the status of a GitHub issue import.
       If the status is 'pending', it sleeps, then rechecks until the status is
       either 'imported' or 'failed'.
       """
       while True:  # keep checking until status is something other than 'pending'
-          response = requests.get(status_url, auth=(self.options.user, self.options.passwd), headers=headers, timeout=Importer._DEFAULT_TIME_OUT)
+          response = requests.get(status_url, headers=self.options.headers, timeout=Importer._DEFAULT_TIME_OUT)
           if response.status_code != 200:
               raise RuntimeError(
                   "Failed to check GitHub issue import status url: {} due to unexpected HTTP status code: {}"
@@ -175,7 +174,7 @@ class Importer:
               .format(status)
           )
       return response
-        
+
   def convert_relationships_to_comments(self, issue):
     duplicates = issue['duplicates']
     is_duplicated_by = issue['is-duplicated-by']
@@ -203,31 +202,31 @@ class Importer:
     del issue['is-related-to']
     del issue['depends-on']
     del issue['blocks']
-      
+
   def _replace_jira_with_github_id(self, text):
     result = text
     for pattern, replacement in self.jira_issue_replace_patterns.iteritems():
       result = re.sub(pattern, Importer._PLACEHOLDER_PREFIX + replacement + Importer._PLACEHOLDER_SUFFIX, result)
     return result
-      
+
   def post_process_comments(self):
     """
     Starts post-processing all issue comments.
     """
     comment_url = self.github_url + '/issues/comments'
-    self._post_process_comments(comment_url) 
-    
+    self._post_process_comments(comment_url)
+
   def _post_process_comments(self, url):
     """
     Paginates through all issue comments and replaces the issue id placeholders with the correct issue ids.
-    """    
+    """
     print "listing comments using " + url
-    response = requests.get(url, auth=(self.options.user, self.options.passwd), timeout=Importer._DEFAULT_TIME_OUT)
+    response = requests.get(url, headers=self.options.headers, timeout=Importer._DEFAULT_TIME_OUT)
     if response.status_code != 200:
         raise RuntimeError(
             "Failed to list all comments due to unexpected HTTP status code: {}".format(response.status_code)
         )
-      
+
     comments = response.json()
     for comment in comments:
       # print "handling comment " + comment['url']
@@ -262,9 +261,8 @@ class Importer:
     # print "new body:" + body
     patch_data = {'body': body}
     # print patch_data
-    response = requests.patch(url, json=patch_data, auth=(self.options.user, self.options.passwd), timeout=Importer._DEFAULT_TIME_OUT)
+    response = requests.patch(url, json=patch_data, headers=self.options.headers, timeout=Importer._DEFAULT_TIME_OUT)
     if response.status_code != 200:
         raise RuntimeError(
             "Failed to patch comment {} due to unexpected HTTP status code: {} ; text: {}".format(url, response.status_code, response.text)
         )
-    
