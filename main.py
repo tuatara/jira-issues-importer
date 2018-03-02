@@ -1,26 +1,38 @@
 #!/usr/bin/env python
 
+import sys
 import getpass
 from collections import namedtuple
 from lxml import objectify
 from project import Project
 from importer import Importer
 
+
 def read_xml_sourcefile(file_name):
   all_text = open(file_name).read()
   return objectify.fromstring(all_text)
 
-file_name = raw_input('Path to JIRA XML query file: ')
-all_xml = read_xml_sourcefile(file_name);
 
-jiraProj = raw_input('JIRA project name to use: ')
-us = raw_input('GitHub account name: ')
-repo = raw_input('GitHub project name: ')
-user = raw_input('GitHub username: ')
-pw = getpass.getpass('GitHub password: ')
+try:
+    from config import *
 
-Options = namedtuple("Options", "user passwd account repo")
-opts = Options(user=user, passwd=pw, account=us, repo=repo)
+    Options = namedtuple("Options", "user passwd account repo")
+    opts = Options(user=user, passwd=passwd, account=account, repo=repo)
+
+except:
+    print """
+        A config.py file is required, defining these variables:
+
+        jiraProj  # JIRA project name to use
+        account   # GitHub account name
+        repo      # GitHub project name
+        user      # GitHub username
+        passwd    # GitHub password
+        file_name # Path to JIRA XML query file
+    """
+    sys.exit()
+
+all_xml = read_xml_sourcefile(file_name)
 
 project = Project(jiraProj)
 
