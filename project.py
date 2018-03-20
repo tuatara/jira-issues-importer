@@ -26,7 +26,7 @@ class Project:
     if itemProject != self.name:
       print 'Skipping item ' + item.key.text + ' for project ' + itemProject + ' current project: ' + self.name
       return
-  
+
     self._append_item_to_project(item)
 
     self._add_milestone(item)
@@ -34,15 +34,15 @@ class Project:
     self._add_labels(item)
 
     self._add_comments(item)
-    
+
     self._add_relationships(item)
 
 
   def merge_labels_and_components(self):
     print
-    print 'Components will be combined with labels as github labels...'    
+    print 'Components will be combined with labels as github labels...'
     self._project['Components'].update(self._project['Labels'])
-  
+
   def prettify(self):
     def hist(h):
       for key in h.iterkeys():
@@ -86,9 +86,13 @@ class Project:
       'comments': [],
       'duplicates': [],
       'is-duplicated-by': [],
-      'is-related-to': [],
+      'relates-to': [],
       'depends-on': [],
-      'blocks': []
+      'blocks': [],
+      'is-blocked-by': [],
+      'split-from': [],
+      'is-cloned-by': [],
+      'is-caused-by': [],
     })
     if not self._project['Issues'][-1]['closed_at']:
       del self._project['Issues'][-1]['closed_at']
@@ -101,10 +105,10 @@ class Project:
     try:
       self._project['Milestones'][item.fixVersion.text] += 1
       # this prop will be deleted later:
-      self._project['Issues'][-1]['milestone_name'] = item.fixVersion.text 
+      self._project['Issues'][-1]['milestone_name'] = item.fixVersion.text
     except AttributeError:
       pass
-  
+
   def _add_labels(self, item):
     try:
       self._project['Components'][item.component.text] += 1
@@ -136,9 +140,9 @@ class Project:
             for issuekey in issuelink.issuekey:
               self._project['Issues'][-1][outwardlink.get("description").replace(' ', '-')].append(issuekey.text)
     except AttributeError:
-      pass
+        pass
     except KeyError:
-          print 'KeyError at ' + item.key.text
+        print 'KeyError at ' + item.key.text
     try:
       for issuelinktype in item.issuelinks.issuelinktype:
         for inwardlink in issuelinktype.inwardlinks:
@@ -146,12 +150,11 @@ class Project:
             for issuekey in issuelink.issuekey:
               self._project['Issues'][-1][inwardlink.get("description").replace(' ', '-')].append(issuekey.text)
     except AttributeError:
-      pass
+        pass
 
-  
+
   def _htmlentitydecode(self, s):
     if s is None: return ''
     s = s.replace(' ' * 8, '')
     return re.sub('&(%s);' % '|'.join(name2codepoint),
         lambda m: unichr(name2codepoint[m.group(1)]), s)
-    

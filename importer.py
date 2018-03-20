@@ -178,9 +178,12 @@ class Importer:
   def convert_relationships_to_comments(self, issue):
     duplicates = issue['duplicates']
     is_duplicated_by = issue['is-duplicated-by']
-    relates_to = issue['is-related-to']
+    relates_to = issue['relates-to']
     depends_on = issue['depends-on']
     blocks = issue['blocks']
+    blocked = issue['is-blocked-by']
+    split = issue['split-from']
+    cloned = issue['is-cloned-by']
 
     for duplicate_item in duplicates:
       issue['comments'].append({"body": "Duplicates: " + self._replace_jira_with_github_id(duplicate_item)})
@@ -197,11 +200,18 @@ class Importer:
     for blocks_item in blocks:
       issue['comments'].append({"body": "Blocks: " + self._replace_jira_with_github_id(blocks_item)})
 
+    for blocked_item in blocked:
+      issue['comments'].append({"body": "Is blocked by: " + self._replace_jira_with_github_id(blocked_item)})
+
     del issue['duplicates']
     del issue['is-duplicated-by']
-    del issue['is-related-to']
+    del issue['relates-to']
     del issue['depends-on']
     del issue['blocks']
+    del issue['is-blocked-by']
+    del issue['split-from']
+    del issue['is-cloned-by']
+    del issue['is-caused-by']
 
   def _replace_jira_with_github_id(self, text):
     result = text
