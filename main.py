@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import sys
-import getpass
 from collections import namedtuple
 from lxml import objectify
 from project import Project
@@ -9,22 +8,22 @@ from importer import Importer
 
 
 def read_xml_sourcefile(file_name):
-  all_text = open(file_name).read()
-  return objectify.fromstring(all_text)
+    all_text = open(file_name).read()
+    return objectify.fromstring(all_text)
 
 
 try:
-    from config import *
+    from config import *  # noqa: F403
 
     Options = namedtuple("Options", "account repo headers")
-    opts = Options(account=account, repo=repo,
+    opts = Options(account=account, repo=repo,  # noqa: F405
                    headers={
                        'Accept': 'application/vnd.github.golden-comet-preview+json',
-                       'Authorization': 'token ' + token,
+                       'Authorization': 'token ' + token,  # noqa: F405
                    })
 
-except:
-    print """
+except ImportError:
+    print("""
         A config.py file is required, defining these variables:
 
         jiraProj  # JIRA project name to use
@@ -32,15 +31,15 @@ except:
         repo      # GitHub project name
         token     # GitHub personal access token
         file_name # Path to JIRA XML query file
-    """
+    """)
     sys.exit()
 
-all_xml = read_xml_sourcefile(file_name)
+all_xml = read_xml_sourcefile(file_name)  # noqa: F405
 
-project = Project(jiraProj)
+project = Project(jiraProj)  # noqa: F405
 
 for item in all_xml.channel.item:
-  project.add_item(item)
+    project.add_item(item)
 
 project.merge_labels_and_components()
 project.prettify()
